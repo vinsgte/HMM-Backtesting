@@ -41,5 +41,36 @@ def hmm(roc, n_states=3):
 
 #Signals Function
 
+def generate_signals(roc, states):
+    means=roc.grouphy(states).mean().iloc[:, 0].sort_values()
 
+    bear = means.index[0]
+    bull=means.index[-1]
+
+    signal = pd.Series(0, index = states.index)
+    signal[states==bull]=1
+    signal[states==bear]=-1
+    return signal
+
+
+#sharpe function
+
+def sharpe_ratio(returns, periods=252):
+    return np.sqrt(periods)*returns.mean()/returns.std()
+
+#main
+
+def main():
+    symbol=input("choose the symbol (ex : BTC-USD, EURUSD=X) :")
+    data=data(symbol)
+    roc =calculate_roc(data).dropna()
+    states=hmm(roc)
+    signals=generate_signals(roc, states)
+    df=pd.DataFrame(index=roc.index)
+    df['close']=data.loc[roc.index, 'close']
+    df['ROC']=roc
+    df['Regime']=states
+    df['Signal']=signals
+
+    
 
