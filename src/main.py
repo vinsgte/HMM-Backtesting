@@ -72,5 +72,80 @@ def main():
     df['Regime']=states
     df['Signal']=signals
 
+    #=============
+    # BACKTEST
+    #=============
+    df['Returns'] = df['Close'].pct_change()
+    df['Position'] = df['Signal'].shift(1).fillna(0)
+    df['Strategy_Returns'] = df['Position'] * df['Returns']
+
+    df['Equity_Strategy'] = (1 + df['Strategy_Returns']).cumprod()
+    df['Equity_BuyHold'] = (1 + df['Returns']).cumprod()
+
+    sharpe_strat = sharpe_ratio(df['Strategy_Returns'].dropna())
+    sharpe_bh = sharpe_ratio(df['Returns'].dropna())
+
+    print("\n===== BACKTEST RESULTS =====")
+    print(f"Sharpe Strategy : {sharpe_strat:.2f}")
+    print(f"Sharpe Buy & Hold : {sharpe_bh:.2f}")
+    print(f"Return Strategy : {(df['Equity_Strategy'].iloc[-1]-1)*100:.2f}%")
+    print(f"Return Buy & Hold : {(df['Equity_BuyHold'].iloc[-1]-1)*100:.2f}%")
+
+    #graph 1 : price + signals 
     
+    # ===============================
+    # GRAPH 1 : PRICE + SIGNALS
+    # ===============================
+    fig1 = go.Figure()
+    fig1.add_trace(go.Scatter(x=df.index, y=df['Close'], name='Price'))
+
+    fig1.add_trace(go.Scatter(
+        x=df[df['Signal'] == 1].index,
+        y=df[df['Signal'] == 1]['Close'],
+        mode='markers',
+        marker=dict(symbol='triangle-up', color='green', size=10),
+        name='Buy'
+    ))
+
+    fig1.add_trace(go.Scatter(
+        x=df[df['Signal'] == -1].index,
+        y=df[df['Signal'] == -1]['Close'],
+        mode='markers',
+        marker=dict(symbol='triangle-down', color='red', size=10),
+        name='Sell'
+    ))
+
+    fig1.update_layout(
+        title=f"{symbol} – HMM Signals",
+        template="plotly_dark"
+    )
+
+    fig1.show()
+
+    # ===============================
+    # GRAPH 2 : EQUITY CURVE
+    # ===============================
+    fig2 = go.Figure()
+    fig2.add_trace(go.Scatter(
+        x=df.index, y=df['Equity_Strategy'],
+        name='HMM Strategy'
+    ))
+    fig2.add_trace(go.Scatter(
+        x=df.index, y=df['Equity_BuyHold'],
+        name='Buy & Hold',
+        line=dict(dash='dash')
+    ))
+
+    fig2.update_layout(
+        title="Equity Curve",
+        template="plotly_dark"
+    )
+
+    fig2.show()
+
+
+if __name__ == "__main__":
+    main()
+
+
 
