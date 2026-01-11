@@ -4,9 +4,8 @@ import numpy as np
 from hmmlearn import hmm
 from sklearn.preprocessing import StandardScaler
 import plotly.graph_objects as go
-from datetime import datetime, timedelta
 from plotly.subplots import make_subplots
-
+from datetime import datetime, timedelta
 
 # ===============================
 # 1️⃣ DATA
@@ -28,7 +27,6 @@ def calculate_roc(data, window=12):
 def fit_hmm(roc, n_states=3):
     scaler = StandardScaler()
     roc_scaled = scaler.fit_transform(roc.values.reshape(-1, 1))
-
     model = hmm.GaussianHMM(
         n_components=n_states,
         covariance_type="full",
@@ -37,7 +35,6 @@ def fit_hmm(roc, n_states=3):
     )
     model.fit(roc_scaled)
     states = model.predict(roc_scaled)
-
     return pd.Series(states, index=roc.index)
 
 # ===============================
@@ -45,16 +42,12 @@ def fit_hmm(roc, n_states=3):
 # ===============================
 def generate_signals(roc, states):
     means = roc.groupby(states).mean().iloc[:, 0].sort_values()
-
     bear = means.index[0]
     bull = means.index[-1]
-
     signal = pd.Series(0, index=states.index)
     signal[states == bull] = 1
     signal[states == bear] = -1
-
     return signal
-
 
 # ===============================
 # 5️⃣ SHARPE
@@ -66,11 +59,14 @@ def sharpe_ratio(returns, periods=252):
 # 6️⃣ MAIN
 # ===============================
 def main():
+    # -------- Paramètres --------
+    initial_capital = 10_000
+    fee_rate = 0.001  # 0.1% par trade
     symbol = input("Choisir le symbol (ex: BTC-USD, EURUSD=X) : ")
 
+    # -------- Data --------
     data = fetch_data(symbol)
     roc = calculate_roc(data).dropna()
-
     states = fit_hmm(roc)
     signals = generate_signals(roc, states)
 
@@ -79,34 +75,107 @@ def main():
     df['ROC'] = roc
     df['Regime'] = states
     df['Signal'] = signals
-        
+
     # ===============================
-    # BACKTEST
+    # BACKTEST JOURNALIER
     # ===============================
     df['Returns'] = df['Close'].pct_change()
     df['Position'] = df['Signal'].shift(1).fillna(0)
-    df['Strategy_Returns'] = df['Position'] * df['Returns']
+    df['Trade'] = df['Position'].diff().abs()
+    df['Fees'] = df['Trade'] * fee_rate
+    df['Strategy_Returns'] = (df['Position'] * df['Returns']) - df['Fees']
 
-    df['Equity_Strategy'] = (1 + df['Strategy_Returns']).cumprod()
-    df['Equity_BuyHold'] = (1 + df['Returns']).cumprod()
+    df['Equity_Strategy'] = initial_capital * (1 + df['Strategy_Returns']).cumprod()
+    df['Equity_BuyHold'] = initial_capital * (1 + df['Returns']).cumprod()
 
     sharpe_strat = sharpe_ratio(df['Strategy_Returns'].dropna())
     sharpe_bh = sharpe_ratio(df['Returns'].dropna())
 
     print("\n===== BACKTEST RESULTS =====")
+    print(f"Capital initial : {initial_capital:.0f}")
+    print(f"Capital final stratégie : {df['Equity_Strategy'].iloc[-1]:.2f}")
+    print(f"Capital final Buy & Hold : {df['Equity_BuyHold'].iloc[-1]:.2f}")
     print(f"Sharpe Strategy : {sharpe_strat:.2f}")
     print(f"Sharpe Buy & Hold : {sharpe_bh:.2f}")
-    print(f"Return Strategy : {(df['Equity_Strategy'].iloc[-1]-1)*100:.2f}%")
-    print(f"Return Buy & Hold : {(df['Equity_BuyHold'].iloc[-1]-1)*100:.2f}%")
 
     # ===============================
-    # GRAPHS CÔTE À CÔTE
+    # BACKTEST PAR TRADES (Portfolio Value)
+    # ===============================
+    capital = initial_capital
+    portfolio_curve = []
+    portfolio_index = []
+    entry_price = None
+    entry_position = 0
+
+    for i in range(1, len(df)):
+        signal = df['Signal'].iloc[i]
+        price = df['Close'].iloc[i]
+        date = df.index[i]
+
+        # Entrée en position
+        if entry_position == 0 and signal != 0:
+            entry_price = price
+            entry_position = signal
+
+        # Sortie de position
+        elif entry_position != 0 and signal != entry_position:
+            trade_return = entry_position * ((price - entry_price) / entry_price)
+            capital *= (1 + trade_return - fee_rate)
+            portfolio_curve.append(capital)
+            portfolio_index.append(date)
+            entry_price = None
+            entry_position = 0
+
+    df_portfolio = pd.DataFrame(
+        {'Portfolio_Value': portfolio_curve},
+        index=portfolio_index
+    )
+
+    # ===============================
+    # VOLATILITÉ HISTORIQUE 3D
+    # ===============================
+    windows = [5, 10, 20, 60, 120]
+    vol_matrix = []
+    for w in windows:
+        vol = df['Returns'].rolling(w).std() * np.sqrt(252)
+        vol_matrix.append(vol.values)
+    vol_matrix = np.array(vol_matrix)
+
+    # ===============================
+    # MONTE CARLO PRICE SIMULATION
+    # ===============================
+    n_simulations = 50
+    n_days = 252
+    last_price = df['Close'].iloc[-1]
+    mu = df['Returns'].mean()
+    sigma = df['Returns'].std()
+
+    mc_paths = []
+    for _ in range(n_simulations):
+        prices = [last_price]
+        for _ in range(n_days):
+            shock = np.random.normal(loc=mu, scale=sigma)
+            price_next = prices[-1] * (1 + shock)
+            prices.append(price_next)
+        mc_paths.append(prices)
+    mc_paths = np.array(mc_paths)
+
+    # ===============================
+    # GRAPHIQUES
     # ===============================
     fig = make_subplots(
-        rows=1, cols=2,
+        rows=2,
+        cols=3,
+        specs=[
+            [{}, {}, {"type": "surface"}],  # ligne 1 : vol 3D
+            [{"colspan": 2}, None, {}]      # ligne 2 : portfolio colspan 2, MC dans col3
+        ],
         subplot_titles=(
             f"{symbol} – Price & HMM Signals",
-            "Equity Curve"
+            "Equity Curve (Normalisée)",
+            "Volatilité 3D",
+            "Évolution du portefeuille (par trades)",
+            "Monte Carlo Price Simulation"
         )
     )
 
@@ -115,7 +184,6 @@ def main():
         go.Scatter(x=df.index, y=df['Close'], name='Price'),
         row=1, col=1
     )
-
     fig.add_trace(
         go.Scatter(
             x=df[df['Signal'] == 1].index,
@@ -126,7 +194,6 @@ def main():
         ),
         row=1, col=1
     )
-
     fig.add_trace(
         go.Scatter(
             x=df[df['Signal'] == -1].index,
@@ -147,7 +214,6 @@ def main():
         ),
         row=1, col=2
     )
-
     fig.add_trace(
         go.Scatter(
             x=df.index,
@@ -158,16 +224,64 @@ def main():
         row=1, col=2
     )
 
+    # -------- GRAPH 3 : VOLATILITÉ 3D --------
+    fig.add_trace(
+        go.Surface(
+            z=vol_matrix,
+            x=np.arange(len(df)),
+            y=windows,
+            colorscale='Viridis',
+            name='Volatilité'
+        ),
+        row=1, col=3
+    )
+
+    # -------- GRAPH 4 : PORTEFEUILLE (TRADES) --------
+    fig.add_trace(
+        go.Scatter(
+            x=df_portfolio.index,
+            y=df_portfolio['Portfolio_Value'],
+            name='Portfolio (Trades)',
+            mode='lines+markers',
+            line=dict(color='gold', width=2),
+            marker=dict(size=6)
+        ),
+        row=2, col=1
+    )
+
+    # -------- GRAPH 5 : MONTE CARLO --------
+    for i in range(n_simulations):
+        fig.add_trace(
+            go.Scatter(
+                y=mc_paths[i],
+                x=np.arange(n_days + 1),
+                mode='lines',
+                line=dict(width=1, color='cyan'),
+                opacity=0.4,
+                showlegend=False
+            ),
+            row=2, col=3
+        )
+
     # -------- LAYOUT --------
     fig.update_layout(
         template="plotly_dark",
-        height=600,
+        height=900,
         title_text=f"{symbol} – HMM Strategy Overview",
         legend=dict(orientation="h", y=-0.15)
+    )
+    fig.update_scenes(
+        dict(
+            xaxis_title='Time Index',
+            yaxis_title='Window (days)',
+            zaxis_title='Volatility'
+        )
     )
 
     fig.show()
 
-
+# ===============================
+# RUN
+# ===============================
 if __name__ == "__main__":
     main()
