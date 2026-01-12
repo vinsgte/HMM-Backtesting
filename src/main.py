@@ -19,6 +19,9 @@ def fetch_data(symbol, days=3650, interval='1d'):
 # 2️⃣ ROC
 # ===============================
 def calculate_roc(data, window=12):
+    # ROC = Rate of Change
+    # Unité : pourcentage (ratio)
+    # Pourquoi : permet de comparer les variations indépendamment du prix absolu
     return data['Close'].pct_change(window)
 
 # ===============================
@@ -137,6 +140,9 @@ def main():
     windows = [5, 10, 20, 60, 120]
     vol_matrix = []
     for w in windows:
+        # Volatilité annualisée
+        # Unité : % par an
+        # Pourquoi : standard en finance pour comparer des actifs sur différentes périodes
         vol = df['Returns'].rolling(w).std() * np.sqrt(252)
         vol_matrix.append(vol.values)
     vol_matrix = np.array(vol_matrix)
@@ -147,8 +153,13 @@ def main():
     n_simulations = 50
     n_days = 252
     last_price = df['Close'].iloc[-1]
-    mu = df['Returns'].mean()
-    sigma = df['Returns'].std()
+    mu = df['Returns'].mean()      # Rendement moyen journalier (ratio)
+    sigma = df['Returns'].std()   # Volatilité journalière (ratio)
+
+    # Pourquoi :
+    # mu et sigma sont adimensionnels car basés sur des rendements
+    # Le prix simulé reste dans l'unité monétaire du prix initial
+
 
     mc_paths = []
     for _ in range(n_simulations):
@@ -159,6 +170,12 @@ def main():
             prices.append(price_next)
         mc_paths.append(prices)
     mc_paths = np.array(mc_paths)
+
+    # ===============================
+    # MONTE CARLO – TRAJECTOIRE MOYENNE
+    # ===============================
+    mc_mean = mc_paths.mean(axis=0)
+    mc_median = np.median(mc_paths, axis=0)
 
     # ===============================
     # GRAPHIQUES
@@ -178,6 +195,8 @@ def main():
             "Monte Carlo Price Simulation"
         )
     )
+
+    
 
     # -------- GRAPH 1 : PRICE + SIGNALS --------
     fig.add_trace(
@@ -205,6 +224,13 @@ def main():
         row=1, col=1
     )
 
+    fig.update_xaxes(title_text="Date", row=1, col=1)
+    fig.update_yaxes(
+        title_text=f"Price ({symbol.split('-')[-1] if '-' in symbol else 'Currency'})",
+        row=1, col=1
+    )
+
+
     # -------- GRAPH 2 : EQUITY CURVE --------
     fig.add_trace(
         go.Scatter(
@@ -224,6 +250,13 @@ def main():
         row=1, col=2
     )
 
+    fig.update_xaxes(title_text="Date", row=1, col=2)
+    fig.update_yaxes(
+        title_text="Portfolio Value (Monetary Units)",
+        row=1, col=2
+    )
+
+
     # -------- GRAPH 3 : VOLATILITÉ 3D --------
     fig.add_trace(
         go.Surface(
@@ -235,6 +268,17 @@ def main():
         ),
         row=1, col=3
     )
+
+    fig.update_scenes(
+        dict(
+            xaxis_title="Time Index (Days)",
+            yaxis_title="Rolling Window (Days)",
+            zaxis_title="Annualized Volatility (%)"
+        )
+    )
+
+
+
 
     # -------- GRAPH 4 : PORTEFEUILLE (TRADES) --------
     fig.add_trace(
@@ -248,6 +292,13 @@ def main():
         ),
         row=2, col=1
     )
+
+    fig.update_xaxes(title_text="Trade Exit Date", row=2, col=1)
+    fig.update_yaxes(
+        title_text="Portfolio Value (Monetary Units)",
+        row=2, col=1
+    )
+
 
     # -------- GRAPH 5 : MONTE CARLO --------
     for i in range(n_simulations):
@@ -263,6 +314,37 @@ def main():
             row=2, col=3
         )
 
+    # Courbe moyenne (espérance)
+    fig.add_trace(
+        go.Scatter(
+            x=np.arange(n_days + 1),
+            y=mc_mean,
+            mode='lines',
+            line=dict(color='yellow', width=3),
+            name='Expected Price (Mean)'
+        ),
+        row=2, col=3
+    )
+
+    # Courbe médiane (scénario le plus probable)
+    fig.add_trace(
+        go.Scatter(
+            x=np.arange(n_days + 1),
+            y=mc_median,
+            mode='lines',
+            line=dict(color='white', width=2, dash='dash'),
+            name='Median Scenario'
+        ),
+        row=2, col=3
+    )
+
+    
+    fig.update_xaxes(title_text="Time (Days)", row=2, col=3)
+    fig.update_yaxes(
+        title_text="Simulated Price (Monetary Units)",
+
+    )
+
     # -------- LAYOUT --------
     fig.update_layout(
         template="plotly_dark",
@@ -270,13 +352,7 @@ def main():
         title_text=f"{symbol} – HMM Strategy Overview",
         legend=dict(orientation="h", y=-0.15)
     )
-    fig.update_scenes(
-        dict(
-            xaxis_title='Time Index',
-            yaxis_title='Window (days)',
-            zaxis_title='Volatility'
-        )
-    )
+
 
     fig.show()
 
@@ -285,3 +361,8 @@ def main():
 # ===============================
 if __name__ == "__main__":
     main()
+
+
+
+
+
