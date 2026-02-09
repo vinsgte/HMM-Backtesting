@@ -3,7 +3,7 @@
 > Automatic detection of market regimes (bullish/neutral/bearish) with backtesting and Monte Carlo simulation.
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
 ![Project Overview](img/overview.png)
-
+![Project Overview](img/Result)
 ---
 
 ## Project Goal
@@ -16,7 +16,7 @@ This project implements a complete **market regime detection system** using **Hi
 # Run the main program
 python main.py
 
-# Choose a financial symbol (e.g., BTC-USD, AAPL, ^GSPC)
+# Choose a financial symbol (BTC-USD, AAPL, ^GSPC)
 Enter financial symbol: BTC-USD
 ```
 
