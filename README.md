@@ -3,7 +3,7 @@
 > Automatic detection of market regimes (bullish/neutral/bearish) with backtesting and Monte Carlo simulation.
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
 ![Project Overview](img/overview.png)
-![Project Overview](img/Result)
+![Project Overview](img/Result.png)
 ---
 
 ## Project Goal
