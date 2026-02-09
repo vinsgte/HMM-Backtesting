@@ -90,4 +90,4 @@ HMM-BACKTESTING/src/
 
 ## Documentation 
 
-![Project Documentation](img/Project 1 hmm-backtesting.pdf)
+[![Project Documentation](img/Project 1 hmm-backtesting.pdf)
