@@ -90,4 +90,4 @@ HMM-BACKTESTING/src/
 
 ## Documentation 
 
-**[View Full Project Documentation (PDF)](docs/Project_1_hmm-backtesting.pdf)**
+[![View PDF](https://img.shields.io/badge/View-Documentation-red.svg?style=for-the-badge&logo=adobeacrobatreader)](img/Project_1_hmm-backtesting.pdf)
