@@ -87,3 +87,7 @@ HMM-BACKTESTING/src/
 -  Engineering Student at ICAM Toulouse, FRANCE (4th year)
 - [LinkedIn](www.linkedin.com/in/gauthereau-vincent-14ba28238)
 - [GitHub](https://github.com/vinsgte)
+
+## Documentation 
+
+![Project Documentation](img/Project 1 hmm-backtesting.pdf)
